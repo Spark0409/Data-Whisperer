@@ -3,6 +3,7 @@ import re
 import time
 from sklearn.model_selection import KFold
 import torch
+from tqdm import tqdm
 from utils.utils import save_json, timer_decorator
 from metrics.metric import METRICS
 from prompt import DATASET_PROMPTS
@@ -343,7 +344,7 @@ class DataWhisperer_GSM_Pruner(Pruner):
                     len(train_set), dtype=torch.int32, device=score.device
                 )
                 # Evaluate this fold
-                self._evaluate_single_fold(train_set, val_set, local_score, local_count)
+                self._evaluate_single_fold(train_set, val_set, local_score, local_count, fold_idx)
                 # Efficiently synchronize local updates with global arrays on GPU
                 if not isinstance(train_idx, torch.Tensor):
                     train_idx = torch.tensor(
@@ -369,7 +370,7 @@ class DataWhisperer_GSM_Pruner(Pruner):
                 len(dataset), dtype=torch.int32, device=score.device
             )
             # Perform evaluation for the entire dataset
-            self._evaluate_single_fold(dataset, val_set, local_score, local_count)
+            self._evaluate_single_fold(dataset, val_set, local_score, local_count, fold_idx=0)
             # Efficiently synchronize local updates with global arrays on GPU
             score.add_(local_score)  # This in-place operation avoids Python loops
             count.add_(local_count)  # Similarly, this adds counts directly on GPU
@@ -402,6 +403,7 @@ class DataWhisperer_GSM_Pruner(Pruner):
         val_set: List[Dict[str, Any]],
         score: torch.Tensor,
         count: torch.Tensor,
+        fold_idx: int = 0,
     ) -> None:
         """
         Evaluate a single fold, updating the local score and count on the GPU.
@@ -428,6 +430,10 @@ class DataWhisperer_GSM_Pruner(Pruner):
         fail = 0
 
         metric_function = METRICS[self.args.metric]
+
+        # Progress bar for training batches
+        pbar = tqdm(total=len(train_batches), desc=f"Fold {fold_idx + 1}/{self.args.k_folds}", 
+                    unit="batch", leave=True)
 
         while train_pointer < len(train_batches):
             batch_demonstrations = []
@@ -459,6 +465,9 @@ class DataWhisperer_GSM_Pruner(Pruner):
                 # Update pointers
                 train_pointer += 1
                 val_pointer = (val_pointer + 1) % len(val_batches)
+
+            # Update progress bar
+            pbar.update(1)
 
             # Generate predictions for the current batch
             batch_predictions, batch_attention_scores = self.predict_batch(
@@ -509,5 +518,5 @@ class DataWhisperer_GSM_Pruner(Pruner):
 
                 count[selected_indices] += len(references)
 
-        
+        pbar.close()
         print(f"Failed batches: {fail}")
