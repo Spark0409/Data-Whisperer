@@ -26,6 +26,8 @@ from typing import List, Dict
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJECT_DIR = os.path.dirname(BASE_DIR)
 
+# (method, heuristic_strategy, keep_ratio, finetune_seeds)
+# finetune_seeds: 微调阶段的随机种子（微调本身有随机性，需要重复3次取平均）
 EXPERIMENTS = [
     ("random", None, 0.05, [42, 123, 456]),
     ("random", None, 0.10, [42, 123, 456]),
@@ -33,6 +35,7 @@ EXPERIMENTS = [
     ("heuristic", "quality_score", 0.05, [42, 123, 456]),
     ("heuristic", "quality_score", 0.10, [42, 123, 456]),
     ("heuristic", "quality_score", 0.20, [42, 123, 456]),
+    # DataWhisperer: 筛选只用 seed=42（确定性方法），微调用 3 个 seed 取平均
     ("datawhisperer", None, 0.05, [42, 123, 456]),
     ("datawhisperer", None, 0.10, [42, 123, 456]),
     ("datawhisperer", None, 0.20, [42, 123, 456]),
@@ -91,35 +94,46 @@ def copy_to_llama_factory():
     return True
 
 
-def run_training() -> bool:
-    """Run LoRA fine-tuning."""
+def run_training(seed: int) -> bool:
+    """Run LoRA fine-tuning with a specific seed."""
+    # Dynamically set seed in YAML config
+    import yaml
+    with open(TRAIN_CONFIG, 'r') as f:
+        config = yaml.safe_load(f)
+    config['seed'] = seed
+    # Also set output_dir to include seed to avoid conflicts
+    config['output_dir'] = f"/root/output/qwen2.5-3b-gsm8k-lora-seed{seed}"
+    with open(TRAIN_CONFIG, 'w') as f:
+        yaml.dump(config, f, default_flow_style=False)
+
     return run_command(
         ["llamafactory-cli", "train", TRAIN_CONFIG],
-        "LoRA fine-tuning",
+        f"LoRA fine-tuning (seed={seed})",
         cwd="/LLaMA-Factory"
     )
 
 
-def merge_lora() -> bool:
+def merge_lora(seed: int) -> bool:
     """Merge LoRA weights."""
-    merged_dir = os.path.join(OUTPUT_ROOT, "output", "qwen2.5-3b-gsm8k-lora-merged")
+    adapter_path = os.path.join(OUTPUT_ROOT, "output", f"qwen2.5-3b-gsm8k-lora-seed{seed}")
+    merged_dir = os.path.join(OUTPUT_ROOT, "output", f"qwen2.5-3b-gsm8k-lora-merged-seed{seed}")
     return run_command(
         [
             "llamafactory-cli", "export",
             "--model_name_or_path", MODEL_PATH,
-            "--adapter_name_or_path", os.path.join(OUTPUT_ROOT, "output", "qwen2.5-3b-gsm8k-lora"),
+            "--adapter_name_or_path", adapter_path,
             "--template", "qwen",
             "--finetuning_type", "lora",
             "--export_dir", merged_dir,
             "--export_device", "auto",
         ],
-        "Merge LoRA weights"
+        f"Merge LoRA weights (seed={seed})"
     )
 
 
-def evaluate_model(output_file: str) -> Dict:
+def evaluate_model(output_file: str, seed: int) -> Dict:
     """Evaluate on GSM8K test set."""
-    merged_model_path = os.path.join(OUTPUT_ROOT, "output", "qwen2.5-3b-gsm8k-lora-merged")
+    merged_model_path = os.path.join(OUTPUT_ROOT, "output", f"qwen2.5-3b-gsm8k-lora-merged-seed{seed}")
     result = subprocess.run(
         [
             sys.executable, EVAL_SCRIPT,
@@ -142,9 +156,13 @@ def evaluate_model(output_file: str) -> Dict:
 
 def run_single_experiment(exp_id: str, selected_path: str) -> Dict:
     """Run training + evaluation for one experiment."""
+    # Extract seed from exp_id (e.g., "random_none_r0.05_s42" -> 42)
+    seed = int(exp_id.split("_s")[-1])
+
     print(f"\n{'#'*70}")
     print(f"# Experiment: {exp_id}")
     print(f"# Selected data: {selected_path}")
+    print(f"# Finetune seed: {seed}")
     print(f"{'#'*70}")
 
     start_time = time.time()
@@ -169,19 +187,19 @@ def run_single_experiment(exp_id: str, selected_path: str) -> Dict:
         # Step 2: Copy to Llama-Factory
         copy_to_llama_factory()
 
-        # Step 3: Train
-        if not run_training():
+        # Step 3: Train (with seed from exp_id)
+        if not run_training(seed):
             result["error"] = "Training failed"
             return result
 
         # Step 4: Merge LoRA
-        if not merge_lora():
+        if not merge_lora(seed):
             result["error"] = "LoRA merge failed"
             return result
 
         # Step 5: Evaluate
         eval_output = os.path.join(RESULTS_DIR, f"{exp_id}_eval.json")
-        eval_result = evaluate_model(eval_output)
+        eval_result = evaluate_model(eval_output, seed)
 
         result["status"] = "completed"
         result["accuracy"] = eval_result["accuracy"]
@@ -282,7 +300,12 @@ def main():
     for method, heuristic, ratio, seeds in EXPERIMENTS:
         for seed in seeds:
             exp_id = f"{method}_{'quality' if heuristic else 'none'}_r{ratio:.2f}_s{seed}"
-            selected_path = os.path.join(SELECTED_DIR, f"{exp_id}.jsonl")
+            # DataWhisperer 筛选是确定性的，只用 seed=42 的数据
+            # 微调 seed 只用于命名（区分重复实验），筛选数据始终用 seed=42
+            if method == "datawhisperer":
+                selected_path = os.path.join(SELECTED_DIR, f"{method}_{'quality' if heuristic else 'none'}_r{ratio:.2f}_s42.jsonl")
+            else:
+                selected_path = os.path.join(SELECTED_DIR, f"{exp_id}.jsonl")
             all_experiments.append((exp_id, selected_path))
 
     total = len(all_experiments)

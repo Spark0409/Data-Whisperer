@@ -26,18 +26,18 @@ PROJECT_DIR = os.path.dirname(BASE_DIR)
 
 EXPERIMENTS = [
     # (method, heuristic_strategy, keep_ratio, seeds)
-    # Random
+    # Random (需要不同 seed 产生随机性)
     ("random", None, 0.05, [42, 123, 456]),
     ("random", None, 0.10, [42, 123, 456]),
     ("random", None, 0.20, [42, 123, 456]),
-    # Heuristic (quality_score)
+    # Heuristic (quality_score) (需要不同 seed 打乱同分数据)
     ("heuristic", "quality_score", 0.05, [42, 123, 456]),
     ("heuristic", "quality_score", 0.10, [42, 123, 456]),
     ("heuristic", "quality_score", 0.20, [42, 123, 456]),
-    # DataWhisperer
-    ("datawhisperer", None, 0.05, [42, 123, 456]),
-    ("datawhisperer", None, 0.10, [42, 123, 456]),
-    ("datawhisperer", None, 0.20, [42, 123, 456]),
+    # DataWhisperer (确定性方法，只需运行一次 seed=42，再从排序结果中取不同比例)
+    ("datawhisperer", None, 0.05, [42]),
+    ("datawhisperer", None, 0.10, [42]),
+    ("datawhisperer", None, 0.20, [42]),
 ]
 
 MODEL_PATH = "/mnt/models/Qwen2.5-3B-Instruct"
@@ -68,9 +68,20 @@ def run_command(cmd: List[str], desc: str, cwd: str = None, env: dict = None) ->
     print(f"  Command: {' '.join(cmd)}", flush=True)
     print(f"{'='*60}", flush=True)
     try:
-        result = subprocess.run(cmd, cwd=cwd or BASE_DIR, env=env, timeout=7200)
-        if result.returncode != 0:
-            print(f"  ERROR: command exited with code {result.returncode}", flush=True)
+        process = subprocess.Popen(
+            cmd,
+            cwd=cwd or BASE_DIR,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            bufsize=1,
+        )
+        for line in process.stdout:
+            print(f"  {line}", end="", flush=True)
+        process.wait()
+        if process.returncode != 0:
+            print(f"  ERROR: command exited with code {process.returncode}", flush=True)
             return False
         return True
     except subprocess.TimeoutExpired:
@@ -132,7 +143,7 @@ def select_data_datawhisperer(keep_ratio: float, seed: int, output_path: str) ->
         "--data_path", ORIGINAL_TRAIN_DATA,
         "--dataset", "gsm8k",
         "--method", "datawhisperer",
-        "--parallel_batches", "15",
+        "--parallel_batches", "5",
         "--batch_train", "10",
         "--batch_test", "5",
         "--max_token", "8192",

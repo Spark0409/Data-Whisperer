@@ -1,7 +1,6 @@
 from datawhisperer_bioinstruct_pruner import DataWhisperer_BioInstruct_Pruner
 from datawhisperer_dialog_pruner import DataWhisperer_Dialog_Pruner
 from datawhisperer_gsm_pruner import DataWhisperer_GSM_Pruner
-from datawhisperer_qwen2_5_vl_pruner import DataWhisperer_Qwen2_5VL_Pruner
 from random_pruner import RandomPruner
 from heuristic_pruner import HeuristicPruner
 import argparse
@@ -16,7 +15,6 @@ def get_pruner(dataset, method='datawhisperer'):
             "bioinstruct": DataWhisperer_BioInstruct_Pruner,
             "dialogsum": DataWhisperer_Dialog_Pruner,
             "gsm8k": DataWhisperer_GSM_Pruner,
-            "llava_1k": DataWhisperer_Qwen2_5VL_Pruner,
         }
         return pruner_map.get(dataset)
     elif method == 'random':

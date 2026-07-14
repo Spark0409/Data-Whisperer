@@ -8,6 +8,7 @@ from metrics.metric import METRICS
 from prompt import DATASET_PROMPTS
 from pruner import Pruner
 from typing import List, Dict, Any, Optional
+from tqdm.auto import tqdm
 
 
 
@@ -190,6 +191,8 @@ class DataWhisperer_GSM_Pruner(Pruner):
                 max_new_tokens=max_new_tokens,
                 temperature=0,
                 do_sample=False,
+                top_p=1.0,
+                top_k=0,
                 pad_token_id=self.tokenizer.eos_token_id,
             )
         # Decode batch outputs
@@ -426,9 +429,11 @@ class DataWhisperer_GSM_Pruner(Pruner):
         train_pointer = 0
         val_pointer = 0
         fail = 0
+        total_batches = len(train_batches)
 
         metric_function = METRICS[self.args.metric]
 
+        pbar = tqdm(total=total_batches, desc="  Processing batches", unit="batch")
         while train_pointer < len(train_batches):
             batch_demonstrations = []
             batch_val_samples = []
@@ -509,5 +514,7 @@ class DataWhisperer_GSM_Pruner(Pruner):
 
                 count[selected_indices] += len(references)
 
-        
+            pbar.update(1)
+
+        pbar.close()
         print(f"Failed batches: {fail}")
