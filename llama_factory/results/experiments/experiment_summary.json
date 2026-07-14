@@ -1,0 +1,74 @@
+[
+  {
+    "method": "heuristic",
+    "heuristic": "quality_score",
+    "keep_ratio": 0.05,
+    "accuracies": [
+      0.8903743315508021,
+      0.8903743315508021,
+      0.8903743315508021
+    ],
+    "mean_accuracy": 0.890374331550802,
+    "std_accuracy": 1.1102230246251565e-16
+  },
+  {
+    "method": "heuristic",
+    "heuristic": "quality_score",
+    "keep_ratio": 0.1,
+    "accuracies": [
+      0.8596256684491979,
+      0.8596256684491979,
+      0.8596256684491979
+    ],
+    "mean_accuracy": 0.859625668449198,
+    "std_accuracy": 1.1102230246251565e-16
+  },
+  {
+    "method": "heuristic",
+    "heuristic": "quality_score",
+    "keep_ratio": 0.2,
+    "accuracies": [
+      0.7941176470588235,
+      0.7941176470588235,
+      0.7941176470588235
+    ],
+    "mean_accuracy": 0.7941176470588235,
+    "std_accuracy": 0.0
+  },
+  {
+    "method": "random",
+    "heuristic": null,
+    "keep_ratio": 0.05,
+    "accuracies": [
+      0.8943850267379679,
+      0.8957219251336899,
+      0.8796791443850267
+    ],
+    "mean_accuracy": 0.8899286987522282,
+    "std_accuracy": 0.0072680509938949
+  },
+  {
+    "method": "random",
+    "heuristic": null,
+    "keep_ratio": 0.1,
+    "accuracies": [
+      0.8368983957219251,
+      0.839572192513369,
+      0.8556149732620321
+    ],
+    "mean_accuracy": 0.8440285204991088,
+    "std_accuracy": 0.008265257126110235
+  },
+  {
+    "method": "random",
+    "heuristic": null,
+    "keep_ratio": 0.2,
+    "accuracies": [
+      0.7754010695187166,
+      0.803475935828877,
+      0.8008021390374331
+    ],
+    "mean_accuracy": 0.7932263814616757,
+    "std_accuracy": 0.012651577153813182
+  }
+]

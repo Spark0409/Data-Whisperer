@@ -1,0 +1,16 @@
+{
+    "gsm8k_train": {
+        "file_name": "gsm8k_train.json",
+        "columns": {
+            "prompt": "instruction",
+            "response": "output"
+        }
+    },
+    "gsm8k_test": {
+        "file_name": "gsm8k_test.json",
+        "columns": {
+            "prompt": "instruction",
+            "response": "output"
+        }
+    }
+}
